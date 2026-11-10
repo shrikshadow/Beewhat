@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Compass, Home, LayoutDashboard, LogOut, Menu, ShieldCheck, User as UserIcon } from "lucide-react";
+import { Compass, Home, LayoutDashboard, LogOut, Menu, MessageCircle, ShieldCheck, User as UserIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
@@ -35,6 +35,7 @@ export default function AppShell() {
     { to: "/home", label: "Home", icon: Home, id: "home" },
     { to: "/explore", label: "Explore", icon: Compass, id: "explore" },
     { to: me ? "/profile" : "/login", label: "Profile", icon: UserIcon, id: "profile" },
+    ...(me && (me.role === "user" || me.role === "expert") ? [{ to: "/messages", label: "Messages", icon: MessageCircle, id: "messages" }] : []),
     ...(dash ? [{ to: dash, label: "Dashboard", icon: LayoutDashboard, id: "dashboard" }] : []),
   ];
 

@@ -12,7 +12,7 @@ load_dotenv(ROOT_DIR / ".env")
 
 # All application data lives in Supabase PostgreSQL (see lib/pg.py; schema via Alembic).
 from lib.pg import engine  # noqa: E402
-from routers import admin, auth, bookings, expert_me, experts  # noqa: E402
+from routers import admin, auth, bookings, chats, expert_me, experts  # noqa: E402
 
 
 @asynccontextmanager
@@ -30,7 +30,7 @@ async def root():
     return {"message": "Consultation marketplace API"}
 
 
-for r in (auth.router, experts.router, bookings.router, expert_me.router, admin.router):
+for r in (auth.router, experts.router, bookings.router, chats.router, expert_me.router, admin.router):
     api_router.include_router(r)
 
 app.add_middleware(

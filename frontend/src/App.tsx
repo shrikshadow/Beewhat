@@ -25,6 +25,7 @@ import BecomeExpert from "@/pages/BecomeExpert";
 import Profile from "@/pages/Profile";
 import ExpertDashboard from "@/pages/ExpertDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
+import Messages, { ChatRoom, StartExpertChat } from "@/pages/Chats";
 
 function NotFound() {
   return (
@@ -43,6 +44,9 @@ export default function App() {
         <Route path="/home" element={<HomeDashboard />} />
         <Route path="/explore" element={<Explore />} />
         <Route path="/experts/:id" element={<ExpertProfile />} />
+        <Route path="/chat/with/:expertId" element={<RequireAuth roles={["user"]}><StartExpertChat /></RequireAuth>} />
+        <Route path="/chat/:threadId" element={<RequireAuth roles={["user", "expert"]}><ChatRoom /></RequireAuth>} />
+        <Route path="/messages" element={<RequireAuth roles={["user", "expert"]}><Messages /></RequireAuth>} />
         <Route path="/book/:id" element={<RequireAuth><Book /></RequireAuth>} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />

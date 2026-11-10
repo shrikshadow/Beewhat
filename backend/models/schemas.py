@@ -263,3 +263,28 @@ class VerifyIn(BaseModel):
 
 class RejectIn(BaseModel):
     reason: str = Field(min_length=3, max_length=1000)
+
+
+class ChatThreadOut(BaseModel):
+    id: str
+    user_id: str
+    user_name: str
+    expert_id: str
+    expert_name: str
+    expert_profession: str
+    expert_photo_url: str | None
+    latest_message: str | None
+    updated_at: datetime
+
+
+class ChatMessageIn(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+
+class ChatMessageOut(BaseModel):
+    id: str
+    thread_id: str
+    sender_id: str
+    sender_name: str
+    body: str
+    created_at: datetime

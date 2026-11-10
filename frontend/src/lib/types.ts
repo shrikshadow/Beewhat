@@ -217,3 +217,24 @@ export interface VerifyIn {
   employment_verified?: boolean;
   credentials_verified?: boolean;
 }
+
+export interface ChatThread {
+  id: string;
+  user_id: string;
+  user_name: string;
+  expert_id: string;
+  expert_name: string;
+  expert_profession: string;
+  expert_photo_url: string | null;
+  latest_message: string | null;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  thread_id: string;
+  sender_id: string;
+  sender_name: string;
+  body: string;
+  created_at: string;
+}
