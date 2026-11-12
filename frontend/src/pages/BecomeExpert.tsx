@@ -176,7 +176,7 @@ export default function BecomeExpert() {
   if (em.isError || !em.data) return <div className="mx-auto max-w-xl px-4 py-16"><ErrorState onRetry={() => em.refetch()} /></div>;
   if (em.data.status === "pending" || em.data.status === "approved")
     return (
-      <AuthCard title={em.data.status === "pending" ? "Application under review" : "You're approved!"} subtitle={em.data.status === "pending" ? "Our team is reviewing your details and documents. You'll be published once approved." : "Your profile is live on Verity."}>
+      <AuthCard title={em.data.status === "pending" ? "Application under review" : "You're approved!"} subtitle={em.data.status === "pending" ? "Our team is reviewing your details and documents. You'll be published once approved." : "Your profile is live on BeeWisely."}>
         <div className="flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900" data-testid="become-expert-status"><Clock className="size-4" /> Status: {em.data.status}</div>
         <Link to="/expert/dashboard" className={`${buttonVariants({ size: "lg" })} mt-4 w-full`} data-testid="become-expert-dashboard-link">Go to dashboard</Link>
       </AuthCard>

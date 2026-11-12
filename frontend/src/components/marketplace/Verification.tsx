@@ -65,7 +65,7 @@ export function VerificationPanel({ v }: { v: Verification }) {
     <div className="space-y-2.5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4" data-testid="verification-panel">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-slate-900">Verification</h3>
-        <span className="text-[11px] text-slate-500">Checked by Verity admins</span>
+        <span className="text-[11px] text-slate-500">Checked by BeeWisely admins</span>
       </div>
       {KINDS.map((k) => (
         <Row key={k.key} label={k.label} icon={k.icon} tone={k.tone} item={v[k.key]} testId={`verification-${k.key}`} />

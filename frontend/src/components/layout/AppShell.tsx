@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Compass, Home, LayoutDashboard, LogOut, Menu, MessageCircle, ShieldCheck, User as UserIcon } from "lucide-react";
+import { Compass, Home, LayoutDashboard, LogOut, Menu, MessageCircle, User as UserIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
@@ -12,10 +12,8 @@ import { cn } from "@/lib/utils";
 function Logo() {
   return (
     <Link to="/" className="flex items-center gap-2" data-testid="nav-logo">
-      <span className="grid size-8 place-items-center rounded-lg bg-slate-900 text-white">
-        <ShieldCheck className="size-4.5" />
-      </span>
-      <span className="font-heading text-lg font-extrabold tracking-tight text-slate-900">Verity</span>
+      <img src="/favicon.svg" alt="" aria-hidden="true" className="size-8" />
+      <span className="font-heading text-lg font-extrabold tracking-tight text-slate-900">BeeWisely</span>
     </Link>
   );
 }

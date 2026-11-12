@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ export function AuthCard({ title, subtitle, children }: { title: string; subtitl
   return (
     <div className="mx-auto grid min-h-[70vh] max-w-md place-items-center px-4 py-12">
       <div className="w-full animate-rise rounded-3xl border border-slate-200 bg-white p-7 shadow-xl shadow-slate-200/50">
-        <span className="grid size-10 place-items-center rounded-xl bg-slate-900 text-white"><ShieldCheck className="size-5" /></span>
+        <img src="/favicon.svg" alt="" aria-hidden="true" className="size-10" />
         <h1 className="mt-4 text-2xl font-extrabold text-slate-900">{title}</h1>
         <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
         <div className="mt-6">{children}</div>
