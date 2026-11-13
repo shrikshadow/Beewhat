@@ -190,6 +190,13 @@ export interface CheckoutOut {
   payment: PaymentOut;
 }
 
+export interface CheckoutOrderOut {
+  order_id: string;
+  amount: number;
+  currency: string;
+  key_id: string;
+}
+
 export interface Earnings {
   gross: number;
   commission: number;

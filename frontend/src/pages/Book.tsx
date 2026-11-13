@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, CreditCard, Loader2, Lock } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, CreditCard, Loader2, Lock } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -12,10 +12,28 @@ import { EmptyState, ErrorState, PageLoader, Skeleton } from "@/components/commo
 import { apiGet, apiPost } from "@/lib/api";
 import { DURATIONS, errMsg, fmtDateTime, fmtDay, fmtTime, formatINR, type Duration } from "@/lib/constants";
 import { useMe, usePublicSettings } from "@/lib/hooks";
-import type { CheckoutIn, CheckoutOut, ExpertDetail, SlotDay } from "@/lib/types";
+import type { CheckoutIn, CheckoutOrderOut, CheckoutOut, ExpertDetail, SlotDay } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+type RazorpayResult = { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
+type RazorpayOptions = {
+  key: string; amount: number; currency: string; name: string; description: string;
+  order_id: string; prefill: { name: string; email: string; contact: string };
+  handler: (result: RazorpayResult) => void;
+  modal: { ondismiss: () => void };
+};
+declare global { interface Window { Razorpay?: new (options: RazorpayOptions) => { open: () => void }; } }
+
+async function loadRazorpay() {
+  if (window.Razorpay) return;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Couldn't load Razorpay Checkout."));
+    document.body.appendChild(script);
+  });
+}
 
 export default function Book() {
   const { id = "" } = useParams();
@@ -44,8 +62,24 @@ export default function Book() {
 
   const pay = useMutation({
     mutationFn: async (body: CheckoutIn) => {
-      await sleep(1600); // simulated gateway processing (demo)
-      return apiPost<CheckoutOut>("/checkout", body);
+      const order = await apiPost<CheckoutOrderOut>("/checkout/order", body);
+      await loadRazorpay();
+      if (!window.Razorpay) throw new Error("Razorpay Checkout is unavailable.");
+      return new Promise<CheckoutOut>((resolve, reject) => {
+        const checkout = new window.Razorpay!({
+          key: order.key_id, amount: order.amount, currency: order.currency,
+          name: "BeeWisely", description: `Consultation with ${expert.data?.full_name ?? "expert"}`, order_id: order.order_id,
+          prefill: { name: me?.full_name ?? "", email: me?.email ?? "", contact: me?.phone ?? "" },
+          handler: (result) => {
+            apiPost<CheckoutOut>("/checkout/verify", {
+              ...body, razorpay_order_id: result.razorpay_order_id,
+              razorpay_payment_id: result.razorpay_payment_id, razorpay_signature: result.razorpay_signature,
+            }).then(resolve, reject);
+          },
+          modal: { ondismiss: () => reject(new Error("Payment cancelled.")) },
+        });
+        checkout.open();
+      });
     },
     onSuccess: (r) => {
       setResult(r);
@@ -156,7 +190,7 @@ export default function Book() {
               <p className="mt-4 text-sm text-amber-700">You can't book a session with yourself.</p>
             ) : (
               <Button size="lg" className="mt-4 w-full" disabled={!slot} onClick={() => { setResult(null); setOpen(true); }} data-testid="proceed-to-pay-button">
-                <Lock className="size-4" /> Continue to demo payment
+                <Lock className="size-4" /> Continue to payment
               </Button>
             )}
           </div>
@@ -164,7 +198,7 @@ export default function Book() {
       </div>
 
       <Dialog open={open} onOpenChange={(o) => { if (!pay.isPending) setOpen(o); }}>
-        <DialogContent className="sm:max-w-md" data-testid="demo-checkout-modal">
+        <DialogContent className="sm:max-w-md" data-testid="checkout-modal">
           {result ? (
             <div className="py-2 text-center" data-testid="payment-success">
               <CheckCircle2 className="mx-auto size-14 text-emerald-600" />
@@ -182,12 +216,9 @@ export default function Book() {
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle>Demo checkout</DialogTitle>
-                <DialogDescription>Review and confirm your session.</DialogDescription>
+                <DialogTitle>Secure checkout</DialogTitle>
+                <DialogDescription>Pay securely with Razorpay to confirm your session.</DialogDescription>
               </DialogHeader>
-              <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-900" data-testid="demo-payment-label">
-                <AlertTriangle className="size-4 shrink-0" /> Demo mode - no real payment will be made
-              </div>
               <div className="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
                 <div className="flex justify-between"><span className="text-slate-500">Expert</span><span className="font-semibold">{e.full_name}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Session</span><span className="font-semibold">{duration} min</span></div>
@@ -196,9 +227,9 @@ export default function Book() {
               </div>
               <div className="flex items-center gap-3 rounded-xl bg-slate-900 p-3 text-white">
                 <CreditCard className="size-5 text-amber-300" />
-                <div className="text-xs"><p className="font-semibold">Demo card •••• 4242</p><p className="text-slate-400">Simulated — nothing is charged</p></div>
+                <div className="text-xs"><p className="font-semibold">Razorpay secure payment</p><p className="text-slate-400">UPI, cards and other methods enabled on your account</p></div>
               </div>
-              <Button size="lg" disabled={pay.isPending || !slot} data-testid="demo-pay-button"
+              <Button size="lg" disabled={pay.isPending || !slot} data-testid="pay-button"
                 onClick={() => slot && pay.mutate({ expert_id: e.id, duration_minutes: duration, start_at: slot, topic })}>
                 {pay.isPending ? <><Loader2 className="size-4 animate-spin" /> Processing payment…</> : <>Pay {formatINR(price)}</>}
               </Button>

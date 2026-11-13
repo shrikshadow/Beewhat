@@ -224,6 +224,23 @@ class CheckoutOut(BaseModel):
     payment: PaymentOut
 
 
+class CheckoutOrderOut(BaseModel):
+    order_id: str
+    amount: int
+    currency: str
+    key_id: str
+
+
+class CheckoutVerifyIn(BaseModel):
+    expert_id: str
+    duration_minutes: Literal[15, 30, 60]
+    start_at: datetime
+    topic: str = Field(default="", max_length=500)
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+
 class ReviewIn(BaseModel):
     rating: int = Field(ge=1, le=5)
     comment: str = Field(default="", max_length=1000)

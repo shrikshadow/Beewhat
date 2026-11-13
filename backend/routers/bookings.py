@@ -1,9 +1,12 @@
-"""Demo checkout (payment + booking in one transaction), my bookings/payments, reviews."""
+"""Razorpay checkout, my bookings/payments, and reviews."""
 
-import secrets
+import hashlib
+import hmac
+import os
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -13,7 +16,7 @@ from lib.auth import current_user
 from lib.pg import get_db
 from lib.slots import is_open_slot
 from lib.views import booking_out, get_commission, payment_out
-from models.schemas import BookingOut, CheckoutIn, CheckoutOut, PaymentOut, ReviewIn
+from models.schemas import BookingOut, CheckoutIn, CheckoutOrderOut, CheckoutOut, CheckoutVerifyIn, PaymentOut, ReviewIn
 from models.tables import Booking, ExpertProfile, Payment, Review, User, uid, utcnow
 from routers.experts import booked_ranges
 
@@ -21,8 +24,28 @@ router = APIRouter(tags=["bookings"])
 CENT = Decimal("0.01")
 
 
-@router.post("/checkout", response_model=CheckoutOut)
-async def checkout(body: CheckoutIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+def razorpay_credentials():
+    key_id = os.getenv("RAZORPAY_KEY_ID", "").strip()
+    key_secret = os.getenv("RAZORPAY_KEY_SECRET", "").strip()
+    if not key_id or not key_secret:
+        raise HTTPException(503, "Razorpay is not configured")
+    return key_id, key_secret
+
+
+async def gateway_request(method: str, path: str, **kwargs):
+    key_id, key_secret = razorpay_credentials()
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.request(
+                method, f"https://api.razorpay.com/v1/{path}", auth=(key_id, key_secret), **kwargs
+            )
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError:
+        raise HTTPException(502, "Unable to reach Razorpay. Please try again.") from None
+
+
+async def validate_checkout(body: CheckoutIn | CheckoutVerifyIn, user: User, db: AsyncSession):
     # Row lock serialises concurrent checkouts for the same expert; the exclusion constraint is the backstop.
     e = (
         await db.execute(select(ExpertProfile).where(ExpertProfile.id == body.expert_id).with_for_update(of=ExpertProfile))
@@ -39,6 +62,63 @@ async def checkout(body: CheckoutIn, user: User = Depends(current_user), db: Asy
         raise HTTPException(409, "That time slot is no longer available. Please pick another.")
 
     amount = Decimal(price).quantize(CENT)
+    return e, start, amount
+
+
+@router.post("/checkout/order", response_model=CheckoutOrderOut)
+async def create_checkout_order(body: CheckoutIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    e, start, amount = await validate_checkout(body, user, db)
+    key_id, _ = razorpay_credentials()
+    order = await gateway_request(
+        "POST",
+        "orders",
+        json={
+            "amount": int(amount * 100),
+            "currency": "INR",
+            "receipt": uid()[:40],
+            "notes": {
+                "user_id": user.id,
+                "expert_id": e.id,
+                "duration_minutes": str(body.duration_minutes),
+                "start_at": start.isoformat(),
+                "topic": body.topic.strip()[:500],
+            },
+        },
+    )
+    return CheckoutOrderOut(order_id=order["id"], amount=order["amount"], currency=order["currency"], key_id=key_id)
+
+
+@router.post("/checkout/verify", response_model=CheckoutOut)
+async def verify_checkout(
+    body: CheckoutVerifyIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)
+):
+    _, secret = razorpay_credentials()
+    expected = hmac.new(
+        secret.encode(), f"{body.razorpay_order_id}|{body.razorpay_payment_id}".encode(), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(expected, body.razorpay_signature):
+        raise HTTPException(400, "Razorpay payment signature is invalid")
+    order = await gateway_request("GET", f"orders/{body.razorpay_order_id}")
+    payment_info = await gateway_request("GET", f"payments/{body.razorpay_payment_id}")
+    if (
+        order.get("status") != "paid"
+        or payment_info.get("order_id") != order.get("id")
+        or payment_info.get("status") != "captured"
+    ):
+        raise HTTPException(400, "Payment is not captured")
+    notes = order.get("notes") or {}
+    if (
+        notes.get("user_id") != user.id
+        or notes.get("expert_id") != body.expert_id
+        or notes.get("duration_minutes") != str(body.duration_minutes)
+        or notes.get("start_at") != body.start_at.astimezone(timezone.utc).isoformat()
+        or payment_info.get("amount") != order.get("amount")
+        or order.get("currency") != "INR"
+    ):
+        raise HTTPException(400, "Payment details do not match this booking")
+    e, start, amount = await validate_checkout(body, user, db)
+    if int(amount * 100) != order.get("amount"):
+        raise HTTPException(400, "Booking amount changed. Please start checkout again.")
     pct = await get_commission(db)
     commission = (amount * pct / 100).quantize(CENT, rounding=ROUND_HALF_UP)
     booking = Booking(
@@ -48,7 +128,7 @@ async def checkout(body: CheckoutIn, user: User = Depends(current_user), db: Asy
         duration_minutes=body.duration_minutes,
         start_at=start,
         end_at=start + timedelta(minutes=body.duration_minutes),
-        topic=body.topic.strip(),
+        topic=notes.get("topic", ""),
         status="confirmed",
         created_at=utcnow(),
     )
@@ -62,9 +142,9 @@ async def checkout(body: CheckoutIn, user: User = Depends(current_user), db: Asy
         commission_amount=commission,
         expert_net=amount - commission,
         currency="INR",
-        method="demo",
+        method="razorpay",
         status="succeeded",
-        transaction_id=f"DEMO-TXN-{secrets.token_hex(6).upper()}",
+        transaction_id=body.razorpay_payment_id,
         created_at=utcnow(),
     )
     db.add_all([booking, payment])  # unit of work inserts booking before payment (FK order), one transaction
@@ -84,7 +164,7 @@ async def checkout(body: CheckoutIn, user: User = Depends(current_user), db: Asy
     p_out = PaymentOut(
         id=payment.id, booking_id=booking.id, amount=float(amount), commission_pct=float(pct),
         commission_amount=float(commission), expert_net=float(amount - commission), currency="INR",
-        transaction_id=payment.transaction_id, method="demo", status="succeeded", created_at=payment.created_at,
+        transaction_id=payment.transaction_id, method="razorpay", status="succeeded", created_at=payment.created_at,
         expert_name=e.user.full_name, user_name=user.full_name, duration_minutes=booking.duration_minutes,
     )
     return CheckoutOut(booking=b_out, payment=p_out)

@@ -138,7 +138,7 @@ export default function AdminDashboard() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <h1 className="text-3xl font-extrabold text-slate-900" data-testid="admin-title">Admin dashboard</h1>
-      <p className="mt-1 text-slate-600">Approvals, verification and platform activity. All payments are demo transactions.</p>
+      <p className="mt-1 text-slate-600">Approvals, verification and platform activity, including Razorpay payments.</p>
 
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6" data-testid="admin-stats">
         {stats.isLoading ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-20" />) : stats.isError ? <div className="col-span-full"><ErrorState onRetry={() => stats.refetch()} /></div> :
